@@ -1,0 +1,1408 @@
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>โปรแกรมบันทึกรายรับ-รายจ่าย (Firebase)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Kanit', sans-serif;
+            background-color: #f0fdf4; /* Light Green Background */
+        }
+        .kanit { font-family: 'Kanit', sans-serif; }
+        .card {
+            background-color: white;
+            border-radius: 16px;
+            box-shadow: 0 8px 16px rgba(0,0,0,0.05);
+            transition: all 0.3s ease;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 24px rgba(0,0,0,0.08);
+        }
+        .btn {
+            border-radius: 10px;
+            padding: 12px 24px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .btn:hover {
+             transform: translateY(-2px);
+             box-shadow: 0 7px 14px rgba(0,0,0,0.1);
+        }
+        .btn-primary { background: linear-gradient(45deg, #10b981, #34d399); color: white; }
+        .btn-secondary { background-color: #64748b; color: white; }
+        .btn-ai {
+            background: linear-gradient(45deg, #4f46e5, #818cf8);
+            color: white;
+        }
+        .btn-income { background: linear-gradient(45deg, #22c55e, #86efac); color: white; }
+        .btn-expense { background: linear-gradient(45deg, #ef4444, #fca5a5); color: white; }
+        .form-input {
+            border-radius: 10px;
+            border: 2px solid #e5e7eb;
+            padding: 12px;
+            width: 100%;
+            transition: border-color 0.2s ease;
+        }
+        .form-input:focus {
+            border-color: #10b981;
+            outline: none;
+        }
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.6);
+            z-index: 100;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            backdrop-filter: blur(5px);
+        }
+        .modal-content {
+            background: white;
+            padding: 2.5rem;
+            border-radius: 16px;
+            width: 90%;
+            max-width: 450px;
+        }
+        .ai-analysis-box {
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-top: 1.5rem;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .loader {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #10b981;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <!-- Auth Container -->
+    <div id="auth-container" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div id="auth-view">
+                <!-- Login View -->
+                <div id="login-view">
+                    <h2 class="text-3xl font-bold text-center mb-2 kanit text-gray-800">ยินดีต้อนรับ</h2>
+                    <p class="text-center text-gray-500 mb-6">กรุณาเข้าสู่ระบบเพื่อใช้งาน</p>
+                    <form id="login-form" class="space-y-4">
+                        <input type="email" id="login-email" class="form-input" placeholder="อีเมล" required>
+                        <input type="password" id="login-password" class="form-input" placeholder="รหัสผ่าน" required>
+                        <button type="submit" class="btn btn-primary w-full">เข้าสู่ระบบ</button>
+                    </form>
+                    <div class="my-4 flex items-center">
+                        <hr class="flex-grow border-gray-300"><span class="mx-4 text-gray-400">หรือ</span><hr class="flex-grow border-gray-300">
+                    </div>
+                    <button id="google-signin-btn" class="btn bg-white text-gray-700 border border-gray-300 w-full"><img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google icon" class="w-5 h-5 mr-3">เข้าสู่ระบบด้วย Google</button>
+                    <p class="text-center mt-6">ยังไม่มีบัญชี? <a href="#" id="show-signup-link" class="text-green-600 font-semibold">สมัครสมาชิก</a></p>
+                </div>
+                <!-- Signup View -->
+                <div id="signup-view" class="hidden">
+                    <h2 class="text-3xl font-bold text-center mb-2 kanit text-gray-800">สร้างบัญชีใหม่</h2>
+                    <p class="text-center text-gray-500 mb-6">เริ่มต้นบันทึกการเงินของคุณ</p>
+                    <form id="signup-form" class="space-y-4">
+                        <input type="email" id="signup-email" class="form-input" placeholder="อีเมล" required>
+                        <input type="password" id="signup-password" class="form-input" placeholder="รหัสผ่าน (อย่างน้อย 6 ตัวอักษร)" required>
+                        <input type="password" id="signup-confirm-password" class="form-input" placeholder="ยืนยันรหัสผ่าน" required>
+                        <button type="submit" class="btn btn-primary w-full">สมัครสมาชิก</button>
+                    </form>
+                    <p class="text-center mt-6">มีบัญชีอยู่แล้ว? <a href="#" id="show-login-link" class="text-green-600 font-semibold">เข้าสู่ระบบ</a></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="loading-overlay" class="modal-overlay hidden">
+        <div class="loader"></div>
+    </div>
+    
+    <!-- Main App Container -->
+    <div id="app-container" class="max-w-6xl mx-auto opacity-0 transition-opacity duration-500 hidden">
+        <header class="text-center mb-4">
+            <div class="flex justify-between items-center">
+                <div></div> <!-- Spacer -->
+                <h1 class="text-4xl font-bold text-gray-800 kanit">โปรแกรมบันทึกรายรับ-รายจ่าย</h1>
+                <button id="logout-btn" class="btn btn-secondary !p-2 !px-4"><i class="fas fa-sign-out-alt"></i></button>
+            </div>
+            <p id="welcome-message" class="text-gray-600 mt-2"></p>
+        </header>
+
+        <div class="text-center mb-8 flex justify-center items-center flex-wrap gap-4">
+            <button id="toggle-view-btn" class="btn btn-secondary"><i class="fas fa-chart-pie mr-2"></i>ดูรายงานสรุป</button>
+            <button id="open-recurring-payments-btn" class="btn btn-secondary"><i class="fas fa-calendar-alt mr-2"></i>รายจ่ายประจำ</button>
+            <button id="open-deposit-plan-btn" class="btn btn-primary"><i class="fas fa-piggy-bank mr-2"></i>แผนการออม</button>
+        </div>
+
+        <main id="main-content" class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <!-- Mobile Order: 1 -->
+            <div class="card p-6 lg:col-span-1 lg:row-start-1">
+                <h2 class="text-2xl font-semibold mb-4 kanit text-gray-800">บันทึกรายการใหม่</h2>
+                <form id="transaction-form" onsubmit="return false;">
+                    <div class="space-y-4">
+                        <input type="date" id="date" class="form-input" required>
+                        <input type="number" id="amount" placeholder="จำนวนเงิน" class="form-input" min="0" step="0.01" required>
+                        <select id="category" class="form-input" required>
+                            <option value="" disabled selected>-- เลือกประเภท --</option>
+                            <optgroup label="รายรับ">
+                                <option value="เงินเดือน">เงินเดือน</option>
+                                <option value="รายได้เสริม">รายได้เสริม</option>
+                                <option value="ของขวัญ">ของขวัญ</option>
+                                <option value="อื่นๆ (รายรับ)">อื่นๆ (รายรับ)</option>
+                            </optgroup>
+                            <optgroup label="รายจ่าย">
+                                <option value="อาหาร">อาหาร</option>
+                                <option value="เดินทาง">เดินทาง</option>
+                                <option value="ค่าน้ำมัน">ค่าน้ำมัน</option>
+                                <option value="ที่อยู่อาศัย">ที่อยู่อาศัย</option>
+                                <option value="ค่าไฟ">ค่าไฟ</option>
+                                <option value="ค่าน้ำ">ค่าน้ำ</option>
+                                <option value="ของใช้ส่วนตัว">ของใช้ส่วนตัว</option>
+                                <option value="บันเทิง">บันเทิง</option>
+                                <option value="สุขภาพ">สุขภาพ</option>
+                                <option value="ค่าฟิตเนส">ค่าฟิตเนส</option>
+                                <option value="การศึกษา">การศึกษา</option>
+                                <option value="ชำระหนี้">ชำระหนี้</option>
+                                <option value="ลงทุน">ลงทุน</option>
+                                <option value="เงินออม">เงินออม</option>
+                                <option value="อื่นๆ (รายจ่าย)">อื่นๆ (รายจ่าย)</option>
+                            </optgroup>
+                        </select>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4 mt-6">
+                        <button type="button" id="add-income-btn" class="btn btn-income"><i class="fas fa-plus mr-2"></i>รายรับ</button>
+                        <button type="button" id="add-expense-btn" class="btn btn-expense"><i class="fas fa-minus mr-2"></i>รายจ่าย</button>
+                    </div>
+                </form>
+            </div>
+            
+            <!-- Mobile Order: 2 -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 lg:col-span-2 lg:col-start-2 lg:row-start-1">
+                <div class="card p-5 text-center">
+                    <p class="text-lg text-green-700">รายรับวันนี้</p>
+                    <p id="today-income" class="text-3xl font-bold text-green-500 kanit">฿0.00</p>
+                </div>
+                <div class="card p-5 text-center">
+                    <p class="text-lg text-red-700">รายจ่ายวันนี้</p>
+                    <p id="today-expense" class="text-3xl font-bold text-red-500 kanit">฿0.00</p>
+                </div>
+                <div class="card p-5 text-center">
+                    <p class="text-lg text-blue-700">คงเหลือวันนี้</p>
+                    <p id="today-balance" class="text-3xl font-bold text-blue-600 kanit">฿0.00</p>
+                </div>
+            </div>
+
+            <!-- Mobile Order: 3 -->
+            <div class="card p-6 lg:col-span-2 lg:col-start-2 lg:row-start-2 lg:row-span-3">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-semibold kanit text-gray-800">รายการของวันนี้</h2>
+                    <input type="date" id="view-date" class="form-input w-auto">
+                </div>
+                <div id="transaction-list" class="space-y-3 max-h-[500px] overflow-y-auto pr-2"></div>
+            </div>
+
+            <!-- Mobile Order: 4 -->
+            <div class="card p-6 lg:col-span-1 lg:col-start-1 lg:row-start-2">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-2xl font-semibold kanit text-gray-800">การลงทุน (S&P 500)</h2>
+                     <button id="open-investment-modal-btn" class="text-sm btn btn-primary py-1 px-3"><i class="fas fa-plus mr-2"></i>ลงทุน</button>
+                </div>
+                <div id="investment-list" class="space-y-4 max-h-96 overflow-y-auto pr-2"></div>
+            </div>
+
+            <!-- Mobile Order: 5 -->
+            <div class="card p-6 lg:col-span-1 lg:col-start-1 lg:row-start-3">
+                <h2 class="text-2xl font-semibold kanit text-gray-800">หุ้นแนะนำประจำวัน</h2>
+                <p class="text-sm text-gray-500 mb-4">วิเคราะห์โดย AI จากข่าวสารล่าสุด</p>
+                <button id="analyze-stocks-btn" class="btn btn-ai w-full"><i class="fas fa-brain mr-2"></i>วิเคราะห์หุ้นแนะนำ</button>
+                <div id="stock-recommendation-result" class="ai-analysis-box hidden"></div>
+            </div>
+        </main>
+
+        <!-- Report Content -->
+        <div id="report-content" class="hidden">
+            <div class="card p-6">
+                <h2 class="text-2xl font-semibold kanit mb-4 text-gray-800">สรุปรายเดือน</h2>
+                <div class="flex items-center space-x-4 mb-6">
+                    <select id="report-month" class="form-input"></select>
+                    <select id="report-year" class="form-input"></select>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <div class="bg-green-50 p-4 rounded-lg text-center">
+                        <p class="text-lg text-green-700">รายรับเดือนนี้</p>
+                        <p id="monthly-income" class="text-3xl font-bold text-green-600 kanit">฿0.00</p>
+                    </div>
+                    <div class="bg-red-50 p-4 rounded-lg text-center">
+                        <p class="text-lg text-red-700">รายจ่ายเดือนนี้</p>
+                        <p id="monthly-expense" class="text-3xl font-bold text-red-600 kanit">฿0.00</p>
+                    </div>
+                    <div class="bg-blue-50 p-4 rounded-lg text-center">
+                        <p class="text-lg text-blue-700">คงเหลือเดือนนี้</p>
+                        <p id="monthly-balance" class="text-3xl font-bold text-blue-600 kanit">฿0.00</p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    <div>
+                        <h3 class="text-xl font-semibold kanit mb-4 text-gray-800">สัดส่วนรายจ่าย</h3>
+                        <div class="max-w-md mx-auto">
+                            <canvas id="expense-chart"></canvas>
+                        </div>
+                    </div>
+                    <div id="spending-advice-container" class="hidden">
+                        <h3 class="text-xl font-semibold kanit mb-4 text-yellow-600"><i class="fas fa-lightbulb mr-2"></i>คำแนะนำการใช้จ่าย</h3>
+                        <div id="spending-advice-content" class="space-y-4">
+                            <!-- Advice will be injected here by JS -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <div id="recurring-payments-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-semibold kanit text-gray-800">รายจ่ายประจำ</h2>
+                <button id="close-recurring-payments-modal-btn" class="text-2xl">&times;</button>
+            </div>
+            <button id="open-recurring-modal-btn" class="btn btn-primary w-full mb-4"><i class="fas fa-plus mr-2"></i>เพิ่มรายการใหม่</button>
+            <div id="recurring-list" class="space-y-4 max-h-[60vh] overflow-y-auto pr-2"></div>
+        </div>
+    </div>
+
+    <div id="spending-alert-modal" class="modal-overlay hidden">
+        <div class="modal-content text-center">
+            <i class="fas fa-exclamation-triangle text-5xl text-yellow-400 mb-4"></i>
+            <h2 class="text-2xl font-bold mb-4 kanit">ข้อควรระวัง!</h2>
+            <p id="spending-alert-message" class="text-gray-600 mb-6"></p>
+            <div class="flex justify-center space-x-4">
+                <button id="spending-alert-ok-btn" class="btn btn-secondary">ก็ได้งับ</button>
+                <button id="spending-alert-fine-btn" class="btn btn-primary">ไม่เป็นไรฉันไหวงับ</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="edit-transaction-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-semibold kanit text-gray-800">แก้ไขรายการ</h2>
+                <button id="close-edit-modal-btn" class="text-2xl">&times;</button>
+            </div>
+            <form id="edit-transaction-form" onsubmit="return false;" class="space-y-4">
+                <input type="hidden" id="edit-transaction-id">
+                <input type="date" id="edit-date" class="form-input" required>
+                <input type="number" id="edit-amount" placeholder="จำนวนเงิน" class="form-input" min="0" step="0.01" required>
+                <select id="edit-category" class="form-input" required></select>
+                <button type="submit" class="btn btn-primary w-full">บันทึกการเปลี่ยนแปลง</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="confirm-modal" class="modal-overlay hidden">
+        <div class="modal-content text-center">
+            <h2 id="confirm-title" class="text-xl font-bold mb-4">ยืนยันการลบ</h2>
+            <p id="confirm-text" class="text-gray-600 mb-6">คุณแน่ใจหรือไม่ว่าต้องการลบรายการนี้?</p>
+            <div class="flex justify-center space-x-4">
+                <button id="confirm-cancel-btn" class="btn btn-secondary">ยกเลิก</button>
+                <button id="confirm-ok-btn" class="btn btn-expense">ยืนยัน</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="deposit-plan-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-semibold kanit text-gray-800">แผนการออมเงิน</h2>
+                <button id="close-deposit-plan-modal-btn" class="text-2xl">&times;</button>
+            </div>
+            <p class="text-gray-600 mb-4">ให้ AI ช่วยคิดแผนการออมเงินที่สนุกและสร้างสรรค์ เพื่อช่วยให้คุณบรรลุเป้าหมายได้ง่ายขึ้น!</p>
+            <button id="get-ai-savings-plan-btn" class="btn btn-ai w-full"><i class="fas fa-magic mr-2"></i>ให้ AI ช่วยคิดแผน</button>
+            <div id="ai-savings-plan-result" class="ai-analysis-box hidden"></div>
+        </div>
+    </div>
+
+    <div id="recurring-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-semibold kanit text-gray-800">เพิ่มรายการผ่อนชำระใหม่</h2>
+                <button id="close-recurring-modal-btn" class="text-2xl">&times;</button>
+            </div>
+            <form id="recurring-form" onsubmit="return false;" class="space-y-4">
+                <input type="text" id="recurring-description" placeholder="คำอธิบาย (เช่น ค่าผ่อนรถ)" class="form-input" required>
+                <input type="number" id="recurring-payment-day" placeholder="วันที่ต้องชำระ (1-31)" class="form-input" min="1" max="31" required>
+                <input type="number" id="recurring-monthly-amount" placeholder="ยอดผ่อนต่อเดือน" class="form-input" min="0" step="0.01" required>
+                <input type="number" id="recurring-total-months" placeholder="จำนวนเดือนทั้งหมด" class="form-input" min="1" step="1" required>
+                <button type="submit" class="btn btn-primary w-full">บันทึกรายการ</button>
+            </form>
+        </div>
+    </div>
+    
+    <div id="edit-recurring-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-semibold kanit text-gray-800">แก้ไขรายจ่ายประจำ</h2>
+                <button id="close-edit-recurring-modal-btn" class="text-2xl">&times;</button>
+            </div>
+            <form id="edit-recurring-form" onsubmit="return false;" class="space-y-4">
+                <input type="hidden" id="edit-recurring-id">
+                <input type="text" id="edit-recurring-description" placeholder="คำอธิบาย" class="form-input" required>
+                <input type="number" id="edit-recurring-payment-day" placeholder="วันที่ต้องชำระ (1-31)" class="form-input" min="1" max="31" required>
+                <input type="number" id="edit-recurring-monthly-amount" placeholder="ยอดผ่อนต่อเดือน" class="form-input" min="0" step="0.01" required>
+                <input type="number" id="edit-recurring-total-months" placeholder="จำนวนเดือนทั้งหมด" class="form-input" min="1" step="1" required>
+                <button type="submit" class="btn btn-primary w-full">บันทึกการเปลี่ยนแปลง</button>
+            </form>
+        </div>
+    </div>
+
+    <div id="investment-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-2xl font-semibold kanit text-gray-800">เพิ่มการลงทุน S&P 500</h2>
+                <button id="close-investment-modal-btn" class="text-2xl">&times;</button>
+            </div>
+            <form id="investment-form" onsubmit="return false;" class="space-y-4">
+                <input type="date" id="investment-date" class="form-input" required>
+                <input type="number" id="investment-amount" placeholder="จำนวนเงินลงทุน (บาท)" class="form-input" min="1" step="0.01" required>
+                <button type="submit" class="btn btn-primary w-full">บันทึกการลงทุน</button>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Toast Notification -->
+    <div id="toast-notification" class="fixed bottom-5 right-5 text-white py-3 px-5 rounded-lg shadow-xl transition-all duration-300 opacity-0 z-[150] transform translate-y-10">
+        <p id="toast-message"></p>
+    </div>
+
+<script type="module">
+    // Firebase Imports
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+    import { 
+        getAuth, onAuthStateChanged, 
+        createUserWithEmailAndPassword, signInWithEmailAndPassword,
+        GoogleAuthProvider, signInWithPopup, signOut
+    } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+    import { getFirestore, doc, onSnapshot, setDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+    // DOM Elements
+    const authContainer = document.getElementById('auth-container');
+    const loginView = document.getElementById('login-view');
+    const signupView = document.getElementById('signup-view');
+    const showSignupLink = document.getElementById('show-signup-link');
+    const showLoginLink = document.getElementById('show-login-link');
+    const loginForm = document.getElementById('login-form');
+    const signupForm = document.getElementById('signup-form');
+    const googleSigninBtn = document.getElementById('google-signin-btn');
+    const logoutBtn = document.getElementById('logout-btn');
+    const welcomeMessage = document.getElementById('welcome-message');
+
+    const loadingOverlay = document.getElementById('loading-overlay');
+    const appContainer = document.getElementById('app-container');
+    const mainContent = document.getElementById('main-content');
+    const reportContent = document.getElementById('report-content');
+    const toggleViewBtn = document.getElementById('toggle-view-btn');
+    const transactionForm = document.getElementById('transaction-form');
+    const dateInput = document.getElementById('date');
+    const amountInput = document.getElementById('amount');
+    const categoryInput = document.getElementById('category');
+    const addIncomeBtn = document.getElementById('add-income-btn');
+    const addExpenseBtn = document.getElementById('add-expense-btn');
+    const viewDateInput = document.getElementById('view-date');
+    const todayIncomeEl = document.getElementById('today-income');
+    const todayExpenseEl = document.getElementById('today-expense');
+    const todayBalanceEl = document.getElementById('today-balance');
+    const transactionListEl = document.getElementById('transaction-list');
+    const recurringListEl = document.getElementById('recurring-list');
+    const investmentListEl = document.getElementById('investment-list');
+    const analyzeStocksBtn = document.getElementById('analyze-stocks-btn');
+    const stockRecommendationResult = document.getElementById('stock-recommendation-result');
+    const toastNotification = document.getElementById('toast-notification');
+    const toastMessage = document.getElementById('toast-message');
+    const spendingAdviceContainer = document.getElementById('spending-advice-container');
+    const spendingAdviceContent = document.getElementById('spending-advice-content');
+    
+    // Modal Elements
+    const spendingAlertModal = document.getElementById('spending-alert-modal');
+    const spendingAlertMessage = document.getElementById('spending-alert-message');
+    const spendingAlertOkBtn = document.getElementById('spending-alert-ok-btn');
+    const spendingAlertFineBtn = document.getElementById('spending-alert-fine-btn');
+    const editTransactionModal = document.getElementById('edit-transaction-modal');
+    const closeEditModalBtn = document.getElementById('close-edit-modal-btn');
+    const editTransactionForm = document.getElementById('edit-transaction-form');
+    const editTransactionIdInput = document.getElementById('edit-transaction-id');
+    const editDateInput = document.getElementById('edit-date');
+    const editAmountInput = document.getElementById('edit-amount');
+    const editCategoryInput = document.getElementById('edit-category');
+    const confirmModal = document.getElementById('confirm-modal');
+    const confirmOkBtn = document.getElementById('confirm-ok-btn');
+    const confirmCancelBtn = document.getElementById('confirm-cancel-btn');
+    const depositPlanModal = document.getElementById('deposit-plan-modal');
+    const openDepositPlanBtn = document.getElementById('open-deposit-plan-btn');
+    const closeDepositPlanModalBtn = document.getElementById('close-deposit-plan-modal-btn');
+    const getAiSavingsPlanBtn = document.getElementById('get-ai-savings-plan-btn');
+    const aiSavingsPlanResult = document.getElementById('ai-savings-plan-result');
+    const recurringPaymentsModal = document.getElementById('recurring-payments-modal');
+    const openRecurringPaymentsBtn = document.getElementById('open-recurring-payments-btn');
+    const closeRecurringPaymentsModalBtn = document.getElementById('close-recurring-payments-modal-btn');
+    const recurringModal = document.getElementById('recurring-modal');
+    const openRecurringModalBtn = document.getElementById('open-recurring-modal-btn');
+    const closeRecurringModalBtn = document.getElementById('close-recurring-modal-btn');
+    const recurringForm = document.getElementById('recurring-form');
+    const recurringDescriptionInput = document.getElementById('recurring-description');
+    const recurringPaymentDayInput = document.getElementById('recurring-payment-day');
+    const recurringMonthlyAmountInput = document.getElementById('recurring-monthly-amount');
+    const recurringTotalMonthsInput = document.getElementById('recurring-total-months');
+    const editRecurringModal = document.getElementById('edit-recurring-modal');
+    const closeEditRecurringModalBtn = document.getElementById('close-edit-recurring-modal-btn');
+    const editRecurringForm = document.getElementById('edit-recurring-form');
+    const editRecurringIdInput = document.getElementById('edit-recurring-id');
+    const editRecurringDescriptionInput = document.getElementById('edit-recurring-description');
+    const editRecurringPaymentDayInput = document.getElementById('edit-recurring-payment-day');
+    const editRecurringMonthlyAmountInput = document.getElementById('edit-recurring-monthly-amount');
+    const editRecurringTotalMonthsInput = document.getElementById('edit-recurring-total-months');
+    const investmentModal = document.getElementById('investment-modal');
+    const openInvestmentModalBtn = document.getElementById('open-investment-modal-btn');
+    const closeInvestmentModalBtn = document.getElementById('close-investment-modal-btn');
+    const investmentForm = document.getElementById('investment-form');
+    const investmentDateInput = document.getElementById('investment-date');
+    const investmentAmountInput = document.getElementById('investment-amount');
+    const reportMonthSelect = document.getElementById('report-month');
+    const reportYearSelect = document.getElementById('report-year');
+    const monthlyIncomeEl = document.getElementById('monthly-income');
+    const monthlyExpenseEl = document.getElementById('monthly-expense');
+    const monthlyBalanceEl = document.getElementById('monthly-balance');
+    const expenseChartCanvas = document.getElementById('expense-chart').getContext('2d');
+    let expenseChartInstance = null;
+
+    // App State
+    let allTransactions = [];
+    let allRecurring = [];
+    let allInvestments = [];
+    let monthlyReportData = {};
+    let db, auth, dataRef;
+    let unsubscribe; 
+    let currentUser = null;
+    let toastTimeout;
+
+    // --- UTILITY FUNCTIONS ---
+    const formatISODate = (date) => new Date(date).toISOString().split('T')[0];
+    const formatCurrency = (amount) => new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB' }).format(amount);
+
+    function showToast(message, type = 'error') {
+        clearTimeout(toastTimeout);
+        toastMessage.textContent = message;
+        toastNotification.classList.remove('bg-red-500', 'bg-green-500');
+        toastNotification.classList.add(type === 'error' ? 'bg-red-500' : 'bg-green-500');
+        toastNotification.classList.remove('opacity-0', 'translate-y-10');
+        toastTimeout = setTimeout(() => {
+            toastNotification.classList.add('opacity-0', 'translate-y-10');
+        }, 3000);
+    }
+
+    // --- FIREBASE SETUP ---
+    const firebaseConfig = {
+        apiKey: "AIzaSyCVwe6LknYKxORLSK2M4lMtMGAnuuY_yOQ",
+        authDomain: "record-monney.firebaseapp.com",
+        projectId: "record-monney",
+        storageBucket: "record-monney.appspot.com",
+        messagingSenderId: "752250967275",
+        appId: "1:752250967275:web:d401e23cd27fc92a151aae"
+    };
+
+    function initializeFirebase() {
+        try {
+            const app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
+            
+            onAuthStateChanged(auth, (user) => {
+                if (unsubscribe) unsubscribe();
+                if (user) {
+                    currentUser = user;
+                    authContainer.classList.add('hidden');
+                    loadingOverlay.style.display = 'flex';
+                    const appId = typeof __app_id !== 'undefined' ? __app_id : 'record-monney';
+                    const dataPath = `/artifacts/${appId}/users/${currentUser.uid}/financeData/main`;
+                    dataRef = doc(db, dataPath);
+                    setupFirestoreListener();
+                } else {
+                    currentUser = null;
+                    authContainer.classList.remove('hidden');
+                    appContainer.classList.add('hidden');
+                    loadingOverlay.style.display = 'none';
+                }
+            });
+
+        } catch (error) {
+            console.error("Firebase Initialization Error:", error);
+            showToast("ไม่สามารถเชื่อมต่อฐานข้อมูลได้", "error");
+        }
+    }
+
+    function setupFirestoreListener() {
+        unsubscribe = onSnapshot(dataRef, (docSnap) => {
+            if (docSnap.exists()) {
+                const data = docSnap.data();
+                allTransactions = data.transactions || [];
+                allRecurring = data.recurring || [];
+                allInvestments = data.investments || [];
+            } else {
+                const initialData = { transactions: [], recurring: [], investments: [] };
+                setDoc(dataRef, initialData);
+                allTransactions = initialData.transactions;
+                allRecurring = initialData.recurring;
+                allInvestments = initialData.investments;
+            }
+            renderAll();
+            welcomeMessage.textContent = `สวัสดี, ${currentUser.email}`;
+            loadingOverlay.style.display = 'none';
+            appContainer.classList.remove('hidden', 'opacity-0');
+        }, (error) => {
+            console.error("Firestore Listener Error:", error);
+            loadingOverlay.innerHTML = `<p class="text-red-500">เกิดข้อผิดพลาดในการโหลดข้อมูล: ${error.message}</p>`;
+        });
+    }
+    
+    // --- DATA SAVING (to Firestore) ---
+    async function saveData() {
+        if (!dataRef) return;
+        try {
+            await setDoc(dataRef, {
+                transactions: allTransactions,
+                recurring: allRecurring,
+                investments: allInvestments
+            }, { merge: true });
+        } catch (error) {
+            console.error("Error saving data to Firestore:", error);
+            showToast("เกิดข้อผิดพลาดในการบันทึกข้อมูล", "error");
+        }
+    }
+
+    // --- AI ANALYSIS FUNCTIONS ---
+    async function getAISavingsPlan() {
+        aiSavingsPlanResult.classList.remove('hidden');
+        aiSavingsPlanResult.innerHTML = '<p>AI กำลังคิดแผนการออมสุดเจ๋งให้คุณ... <i class="fas fa-spinner fa-spin"></i></p>';
+
+        const prompt = `คุณคือ "นักวางแผนการเงิน Gemini" ผู้เชี่ยวชาญด้านการสร้างนิสัยการออมเงิน
+
+โปรดคิดแผนการออมเงินที่สนุก สร้างสรรค์ และทำได้จริงสำหรับคนไทย 3 แผน เพื่อช่วยให้การเก็บเงินเป็นเรื่องสนุกเหมือนการเล่นเกม
+
+สำหรับแต่ละแผน โปรดระบุ:
+1.  **ชื่อแผนสุดสร้างสรรค์:** (เช่น "ภารกิจพิชิตเงินล้าน", "ออมลืมโลก", "เกมเศรษฐีฉบับเริ่มต้น")
+2.  **วิธีการออม (Action):** อธิบายวิธีการออมในแต่ละวัน/สัปดาห์แบบเข้าใจง่าย และสนุก
+3.  **เป้าหมายของแผน:** บอกเป้าหมายว่าเมื่อทำสำเร็จจะได้อะไร (เช่น "มีเงินเที่ยวญี่ปุ่น", "ดาวน์รถคันแรก", "สร้างกองทุนฉุกเฉิน")
+
+จัดรูปแบบคำตอบโดยใช้ Markdown (ตัวหนา, ลิสต์) และตอบเป็นภาษาไทยเท่านั้น`;
+        
+        try {
+            const apiKey = ""; // API key will be injected by the environment
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+            
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }] })
+            });
+
+            if (!response.ok) throw new Error(`API request failed with status ${response.status}`);
+            
+            const result = await response.json();
+            
+            if (result.candidates && result.candidates[0].content && result.candidates[0].content.parts[0]) {
+                let aiText = result.candidates[0].content.parts[0].text
+                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                    .replace(/\n/g, '<br>');
+                
+                aiSavingsPlanResult.innerHTML = aiText;
+            } else {
+                throw new Error("No valid content in AI response.");
+            }
+        } catch (error) {
+            console.error("AI Savings Plan Error:", error);
+            aiSavingsPlanResult.innerHTML = '<p class="text-red-500">เกิดข้อผิดพลาดในการเรียก AI ค่ะ</p>';
+        }
+    }
+
+    async function getAIStockRecommendations() {
+        const today = formatISODate(new Date());
+        const cacheKey = 'stockAnalysisCache_International';
+        const cachedData = JSON.parse(localStorage.getItem(cacheKey));
+
+        if (cachedData && cachedData.date === today) {
+            stockRecommendationResult.innerHTML = cachedData.recommendations;
+            stockRecommendationResult.classList.remove('hidden');
+            return;
+        }
+
+        stockRecommendationResult.classList.remove('hidden');
+        stockRecommendationResult.innerHTML = '<p>AI กำลังวิเคราะห์ข้อมูล... <i class="fas fa-spinner fa-spin"></i></p>';
+
+        const prompt = `คุณคือ "Gemini Global-Invest" ผู้เชี่ยวชาญด้านการวิเคราะห์ตลาดหุ้นต่างประเทศ (เช่น NASDAQ, NYSE)
+
+โปรดวิเคราะห์ข่าวสารและแนวโน้มล่าสุดของตลาดหุ้นสหรัฐฯ (ข้อมูล ณ วันนี้) และแนะนำหุ้นเทคโนโลยีขนาดใหญ่ (Big Tech) ที่น่าสนใจ 2-3 ตัว เช่น NVIDIA, Amazon, หรืออื่นๆ สำหรับการลงทุนระยะสั้นถึงกลาง
+
+สำหรับหุ้นแต่ละตัว โปรดระบุ:
+1.  **ชื่อหุ้นและ Ticker Symbol:** (เช่น NVDA - NVIDIA Corporation)
+2.  **เหตุผลที่แนะนำ:** (สรุปข่าวสารหรือปัจจัยบวกที่สำคัญ เช่น การเปิดตัวผลิตภัณฑ์ใหม่, รายงานผลประกอบการ, แนวโน้มของ AI, E-commerce)
+3.  **ความเสี่ยงที่ควรพิจารณา:** (ปัจจัยลบหรือความไม่แน่นอน เช่น การแข่งขัน, กฎระเบียบ, สภาวะเศรษฐกิจ)
+
+จัดรูปแบบคำตอบโดยใช้ Markdown และตอบเป็นภาษาไทยเท่านั้น`;
+
+        try {
+            const apiKey = ""; // API key will be injected by the environment
+            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-05-20:generateContent?key=${apiKey}`;
+            
+            const response = await fetch(apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }] }] })
+            });
+
+            if (!response.ok) throw new Error(`API request failed with status ${response.status}`);
+            
+            const result = await response.json();
+            
+            if (result.candidates && result.candidates[0].content && result.candidates[0].content.parts[0]) {
+                let aiText = result.candidates[0].content.parts[0].text
+                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                    .replace(/\n/g, '<br>');
+                
+                stockRecommendationResult.innerHTML = aiText;
+                
+                const newCache = {
+                    date: today,
+                    recommendations: aiText
+                };
+                localStorage.setItem(cacheKey, JSON.stringify(newCache));
+
+            } else {
+                throw new Error("No valid content in AI response.");
+            }
+        } catch (error) {
+            console.error("AI Stock Analysis Error:", error);
+            stockRecommendationResult.innerHTML = '<p class="text-red-500">เกิดข้อผิดพลาดในการเรียก AI ค่ะ</p>';
+        }
+    }
+
+
+    // --- CORE LOGIC ---
+    async function addTransaction(type) {
+        if (!transactionForm.checkValidity()) {
+            transactionForm.reportValidity();
+            return;
+        }
+
+        const amount = parseFloat(amountInput.value);
+        const date = dateInput.value;
+        const category = categoryInput.value;
+        const description = categoryInput.options[categoryInput.selectedIndex].text;
+
+        const proceedWithTransaction = async () => {
+            await createTransaction(type, description, amount, category, date);
+            transactionForm.reset();
+            dateInput.value = formatISODate(new Date());
+        };
+
+        if (type === 'expense') {
+            const todaysTransactions = allTransactions.filter(t => new Date(t.date).toDateString() === new Date(date).toDateString());
+            const incomeToday = todaysTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+            const expenseToday = todaysTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+            const balanceToday = incomeToday - expenseToday;
+
+            if (balanceToday > 0 && amount > balanceToday * 0.5) {
+                showSpendingAlertModal(50, amount, balanceToday, proceedWithTransaction);
+            } else if (balanceToday > 0 && amount > balanceToday * 0.25) {
+                showSpendingAlertModal(25, amount, balanceToday, proceedWithTransaction);
+            } else {
+                await proceedWithTransaction();
+            }
+        } else {
+            await proceedWithTransaction();
+        }
+    }
+    
+    async function createTransaction(type, description, amount, category, date) {
+        const newTransaction = {
+            id: Date.now(),
+            timestamp: new Date().toISOString(),
+            date,
+            description,
+            amount,
+            type,
+            category
+        };
+        allTransactions.push(newTransaction);
+        await saveData();
+    }
+
+    async function addRecurringPayment() {
+        if (!recurringForm.checkValidity()) {
+            recurringForm.reportValidity();
+            return;
+        }
+        const monthlyAmount = parseFloat(recurringMonthlyAmountInput.value);
+        const totalMonths = parseInt(recurringTotalMonthsInput.value);
+        const totalAmount = monthlyAmount * totalMonths;
+
+        if (isNaN(totalAmount) || isNaN(totalMonths) || isNaN(monthlyAmount) || totalMonths <= 0 || monthlyAmount <= 0) {
+            showToast("กรุณากรอกข้อมูลตัวเลขให้ถูกต้อง", "error");
+            return;
+        }
+
+        const newRecurring = {
+            id: Date.now(),
+            description: recurringDescriptionInput.value,
+            paymentDay: parseInt(recurringPaymentDayInput.value),
+            totalAmount,
+            amountPerMonth: monthlyAmount,
+            totalMonths,
+            paidAmount: 0,
+            paidMonths: 0,
+            lastPaidPeriod: null
+        };
+        allRecurring.push(newRecurring);
+        await saveData();
+        recurringForm.reset();
+        recurringModal.classList.add('hidden');
+    }
+
+    async function handleRecurringPayment(id) {
+        const item = allRecurring.find(r => r.id === id);
+        if (!item) return;
+
+        const currentPeriod = new Date().toISOString().slice(0, 7);
+        if (item.lastPaidPeriod === currentPeriod) {
+            showToast('คุณได้ชำระรายการนี้สำหรับเดือนนี้ไปแล้ว', 'error');
+            return;
+        }
+        
+        item.paidAmount += item.amountPerMonth;
+        item.paidMonths += 1;
+        item.lastPaidPeriod = currentPeriod;
+        
+        await createTransaction('expense', `ชำระ: ${item.description}`, item.amountPerMonth, 'ชำระหนี้', formatISODate(new Date()));
+    }
+
+    // Investment Logic
+    function getSP500Price(dateStr) {
+        const date = new Date(dateStr);
+        const basePrice = 3000;
+        const baseDate = new Date('2020-01-01');
+        const daysDiff = (date - baseDate) / (1000 * 60 * 60 * 24);
+        const price = basePrice + (daysDiff * 1.5) + (Math.sin(daysDiff / 30) * 100);
+        return parseFloat(price.toFixed(2));
+    }
+
+    async function addInvestment() {
+        if (!investmentForm.checkValidity()) {
+            investmentForm.reportValidity();
+            return;
+        }
+        const investment = {
+            id: Date.now(),
+            date: investmentDateInput.value,
+            amount: parseFloat(investmentAmountInput.value),
+            initialSPPrice: getSP500Price(investmentDateInput.value)
+        };
+        allInvestments.push(investment);
+        await createTransaction('expense', 'ลงทุนใน S&P 500', investment.amount, 'ลงทุน', investment.date);
+        investmentForm.reset();
+        investmentModal.classList.add('hidden');
+    }
+
+    // --- RENDERING FUNCTIONS ---
+    const categoryIcons = {
+        "เงินเดือน": "fas fa-wallet",
+        "รายได้เสริม": "fas fa-briefcase",
+        "ของขวัญ": "fas fa-gift",
+        "อาหาร": "fas fa-utensils",
+        "เดินทาง": "fas fa-bus-alt",
+        "ค่าน้ำมัน": "fas fa-gas-pump",
+        "ที่อยู่อาศัย": "fas fa-home",
+        "ค่าไฟ": "fas fa-bolt",
+        "ค่าน้ำ": "fas fa-tint",
+        "ของใช้ส่วนตัว": "fas fa-shopping-bag",
+        "บันเทิง": "fas fa-film",
+        "สุขภาพ": "fas fa-heartbeat",
+        "ค่าฟิตเนส": "fas fa-dumbbell",
+        "การศึกษา": "fas fa-book-open",
+        "ชำระหนี้": "fas fa-credit-card",
+        "ลงทุน": "fas fa-chart-line",
+        "เงินออม": "fas fa-piggy-bank",
+        "อื่นๆ (รายรับ)": "fas fa-plus-circle",
+        "อื่นๆ (รายจ่าย)": "fas fa-minus-circle"
+    };
+
+    function renderAll() {
+        renderDataForDate(viewDateInput.value);
+        renderRecurring();
+        renderInvestments();
+    }
+
+    function renderDataForDate(dateString) {
+        const selectedDate = new Date(dateString);
+        const filteredTransactions = allTransactions.filter(t => new Date(t.date).toDateString() === selectedDate.toDateString());
+        renderTransactions(filteredTransactions);
+        updateDashboard(filteredTransactions);
+    }
+
+    function updateDashboard(transactions) {
+        const income = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + Number(t.amount), 0);
+        const expense = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + Number(t.amount), 0);
+        const balance = income - expense;
+        todayIncomeEl.textContent = formatCurrency(income);
+        todayExpenseEl.textContent = formatCurrency(expense);
+        todayBalanceEl.textContent = formatCurrency(balance);
+    }
+
+    function renderTransactions(transactions) {
+        transactionListEl.innerHTML = '';
+        if (transactions.length === 0) {
+            transactionListEl.innerHTML = '<p class="text-gray-400 text-center py-4">ไม่พบรายการในวันที่เลือก</p>';
+            return;
+        }
+        transactions.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp)).forEach(t => {
+            const isIncome = t.type === 'income';
+            const iconClass = categoryIcons[t.category] || (isIncome ? 'fas fa-plus' : 'fas fa-minus');
+            const card = `<div class="flex items-center p-3 rounded-lg ${isIncome ? 'bg-green-50' : 'bg-red-50'}">
+                            <div class="w-12 h-12 flex items-center justify-center rounded-full ${isIncome ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'} text-xl">
+                                <i class="${iconClass}"></i>
+                            </div>
+                            <div class="flex-grow ml-4">
+                                <p class="font-semibold text-gray-800">${t.description}</p>
+                                <p class="text-sm text-gray-500">${new Date(t.timestamp).toLocaleTimeString('th-TH', { hour: '2-digit', minute: '2-digit' })} น.</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="font-bold text-lg ${isIncome ? 'text-green-600' : 'text-red-600'}">${isIncome ? '+' : '-'}${formatCurrency(t.amount)}</p>
+                            </div>
+                            <div class="ml-4 flex items-center space-x-3">
+                                <button data-id="${t.id}" class="edit-btn text-blue-500 hover:text-blue-700 text-lg"><i class="fas fa-edit"></i></button>
+                                <button data-id="${t.id}" class="delete-btn text-red-500 hover:text-red-700 text-lg"><i class="fas fa-trash"></i></button>
+                            </div>
+                          </div>`;
+            transactionListEl.insertAdjacentHTML('beforeend', card);
+        });
+    }
+
+    function renderRecurring() {
+        recurringListEl.innerHTML = '';
+        if (allRecurring.length === 0) {
+            recurringListEl.innerHTML = '<p class="text-gray-400 text-center">ไม่มีรายการผ่อนชำระ</p>';
+            return;
+        }
+        const today = new Date();
+        const currentDay = today.getDate();
+        const currentPeriod = today.toISOString().slice(0, 7);
+
+        allRecurring.forEach(r => {
+            const progress = (r.paidAmount / r.totalAmount) * 100;
+            const isPaidThisMonth = r.lastPaidPeriod === currentPeriod;
+            const isFullyPaid = r.paidMonths >= r.totalMonths;
+            const remainingAmount = r.totalAmount - r.paidAmount;
+            const isOverdue = !isPaidThisMonth && !isFullyPaid && currentDay > r.paymentDay;
+
+            const itemHTML = `
+                <div class="border rounded-lg p-3 ${isFullyPaid ? 'bg-green-50 opacity-70' : ''} ${isOverdue ? 'border-2 border-red-400' : ''}">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="font-bold text-gray-800">${r.description}</p>
+                            <p class="text-sm text-gray-500">งวดที่ ${r.paidMonths} / ${r.totalMonths}</p>
+                            <p class="text-xs ${isOverdue ? 'text-red-500 font-semibold' : 'text-gray-400'}">
+                                ${isOverdue ? '<i class="fas fa-exclamation-triangle mr-1"></i>' : ''}ชำระทุกวันที่ ${r.paymentDay}
+                            </p>
+                        </div>
+                        <div class="flex flex-col items-end">
+                             <button class="btn text-xs mb-2 ${isPaidThisMonth || isFullyPaid ? 'bg-gray-300 cursor-not-allowed' : 'btn-primary'}" data-recurring-id="${r.id}" ${isPaidThisMonth || isFullyPaid ? 'disabled' : ''}>
+                                ${isFullyPaid ? 'ชำระครบแล้ว' : (isPaidThisMonth ? 'ชำระแล้ว' : 'ชำระงวดนี้')}
+                            </button>
+                            <div class="flex items-center space-x-3">
+                                <button data-id="${r.id}" class="edit-recurring-btn text-blue-500 hover:text-blue-700 text-base"><i class="fas fa-edit"></i></button>
+                                <button data-id="${r.id}" class="delete-recurring-btn text-red-500 hover:text-red-700 text-base"><i class="fas fa-trash"></i></button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="mt-2">
+                        <div class="w-full bg-gray-200 rounded-full h-2.5">
+                            <div class="bg-green-600 h-2.5 rounded-full" style="width: ${progress}%"></div>
+                        </div>
+                        <div class="flex justify-between text-xs mt-1 text-gray-600">
+                            <span>ชำระแล้ว: ${formatCurrency(r.paidAmount)}</span>
+                            <span>คงเหลือ: ${formatCurrency(remainingAmount < 0 ? 0 : remainingAmount)}</span>
+                        </div>
+                    </div>
+                </div>`;
+            recurringListEl.insertAdjacentHTML('beforeend', itemHTML);
+        });
+    }
+    
+    function renderInvestments() {
+        investmentListEl.innerHTML = '';
+        if (allInvestments.length === 0) {
+            investmentListEl.innerHTML = '<p class="text-gray-400 text-center">ไม่มีรายการลงทุน</p>';
+            return;
+        }
+        
+        const currentSPPrice = getSP500Price(new Date().toISOString());
+        allInvestments.forEach(inv => {
+            const currentValue = (currentSPPrice / inv.initialSPPrice) * inv.amount;
+            const profitLoss = currentValue - inv.amount;
+            const isProfit = profitLoss >= 0;
+            const profitLossPercent = (profitLoss / inv.amount) * 100;
+            
+            const itemHTML = `
+                <div class="border rounded-lg p-3">
+                    <p class="font-bold text-gray-800">ลงทุน S&P 500</p>
+                    <p class="text-xs text-gray-400">เมื่อวันที่: ${inv.date}</p>
+                    <div class="flex justify-between items-end mt-2">
+                        <div>
+                            <p class="text-sm text-gray-500">เงินลงทุน</p>
+                            <p class="font-semibold">${formatCurrency(inv.amount)}</p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-500">มูลค่าปัจจุบัน</p>
+                            <p class="font-semibold text-lg ${isProfit ? 'text-green-600' : 'text-red-600'}">${formatCurrency(currentValue)}</p>
+                        </div>
+                    </div>
+                    <div class="text-xs text-right ${isProfit ? 'text-green-600' : 'text-red-600'}">
+                        ${isProfit ? '+' : ''}${formatCurrency(profitLoss)} (${profitLossPercent.toFixed(2)}%)
+                    </div>
+                </div>`;
+            investmentListEl.insertAdjacentHTML('beforeend', itemHTML);
+        });
+    }
+
+    // --- REPORTING FUNCTIONS ---
+    const spendingAdvice = {
+        "อาหาร": {
+            title: "ดูเหมือนว่าค่าอาหารจะสูงเป็นพิเศษในเดือนนี้ ลองพิจารณาแนวทางเหล่านี้ดูนะครับ:",
+            tips: [
+                "<b>วางแผนมื้ออาหารล่วงหน้า:</b> การรู้ว่าจะทานอะไรในแต่ละสัปดาห์ช่วยลดการซื้อของที่ไม่จำเป็นและการสั่งอาหารนอกบ้านได้",
+                "<b>ทำอาหารทานเอง:</b> การทำอาหารเองช่วยประหยัดได้มากกว่าการซื้อทานนอกบ้านอย่างมีนัยสำคัญ",
+                "<b>ลดค่ากาแฟและเครื่องดื่ม:</b> ค่าใช้จ่ายเล็กๆ น้อยๆ จากร้านกาแฟสามารถรวมกันเป็นเงินก้อนใหญ่ได้ ลองชงกาแฟดื่มเองที่บ้านดูนะครับ",
+                "<b>ใช้โปรโมชั่นและส่วนลด:</b> มองหาโปรโมชั่นจากร้านค้าหรือแอปพลิเคชันเดลิเวอรี่ก่อนสั่งซื้อเสมอ"
+            ]
+        },
+        "เดินทาง": {
+            title: "ค่าเดินทางเดือนนี้ค่อนข้างสูง ลองดูวิธีเหล่านี้เพื่อช่วยประหยัดมากขึ้นครับ:",
+            tips: [
+                "<b>ใช้ระบบขนส่งสาธารณะ:</b> หากเป็นไปได้ ลองสลับมาใช้รถไฟฟ้าหรือรถโดยสารประจำทางในบางวัน",
+                "<b>วางแผนการเดินทาง:</b> รวมธุระต่างๆ ไว้ในเส้นทางเดียวกันเพื่อลดการเดินทางที่ไม่จำเป็นและประหยัดน้ำมัน",
+                "<b>Carpool หรือ ทางเดียวกันไปด้วยกัน:</b> หากมีเพื่อนร่วมงานหรือเพื่อนที่เดินทางในเส้นทางเดียวกัน ลองเดินทางไปด้วยกันเพื่อแชร์ค่าใช้จ่าย"
+            ]
+        },
+        "บันเทิง": {
+            title: "การให้รางวัลตัวเองเป็นสิ่งที่ดี แต่ค่าใช้จ่ายด้านความบันเทิงเดือนนี้ดูจะสูงไปหน่อยครับ:",
+            tips: [
+                "<b>หากิจกรรมฟรี:</b> ลองมองหากิจกรรมที่ไม่ต้องเสียเงิน เช่น ไปสวนสาธารณะ, อ่านหนังสือ, หรือดูกีฬาที่บ้าน",
+                "<b>ตั้งงบประมาณความบันเทิง:</b> กำหนดงบสำหรับความบันเทิงในแต่ละเดือนและพยายามใช้ไม่ให้เกินงบที่ตั้งไว้",
+                "<b>ใช้บริการสตรีมมิ่งอย่างคุ้มค่า:</b> ตรวจสอบว่าได้ใช้บริการสตรีมมิ่งทั้งหมดที่คุณสมัครไว้อย่างสม่ำเสมอหรือไม่ อาจพิจารณายกเลิกบางบริการที่ไม่ได้ใช้"
+            ]
+        },
+        "ของใช้ส่วนตัว": {
+            title: "ค่าใช้จ่ายสำหรับของใช้ส่วนตัวและช้อปปิ้งเดือนนี้มีสัดส่วนค่อนข้างมากครับ:",
+            tips: [
+                "<b>ใช้กฎ 30 วัน:</b> สำหรับของชิ้นใหญ่ที่อยากได้ ลองรอ 30 วันก่อนตัดสินใจซื้อ หากยังอยากได้อยู่ก็ค่อยซื้อ",
+                "<b>เปรียบเทียบราคาก่อนซื้อ:</b> ใช้แอปพลิเคชันหรือเว็บไซต์เปรียบเทียบราคาเพื่อให้แน่ใจว่าคุณได้ราคาที่ดีที่สุด",
+                "<b>แยก 'ความจำเป็น' ออกจาก 'ความอยากได้':</b> ก่อนจะซื้อของ ลองถามตัวเองว่าสิ่งนี้จำเป็นจริงๆ หรือเป็นแค่ความอยากได้ชั่วคราว"
+            ]
+        },
+        "ทั่วไป": {
+            title: "พบว่ามีค่าใช้จ่ายในหมวดหมู่ '{category}' สูงกว่าปกติครับ:",
+            tips: [
+                "<b>ทบทวนรายการใช้จ่าย:</b> ลองดูรายละเอียดการใช้จ่ายในหมวดหมู่นี้เพื่อหาว่ามีรายการไหนที่สามารถลดได้บ้าง",
+                "<b>ตั้งเป้าหมายการลดรายจ่าย:</b> ลองตั้งเป้าหมายเล็กๆ เพื่อลดรายจ่ายในหมวดหมู่นี้ในเดือนถัดไป เช่น ลดลง 10%",
+                "<b>มองหาทางเลือกที่ถูกกว่า:</b> สำรวจว่ามีสินค้าหรือบริการอื่นที่สามารถทดแทนกันได้ในราคาที่ย่อมเยากว่าหรือไม่"
+            ]
+        }
+    };
+
+    function analyzeSpendingAndGiveAdvice(reportData) {
+        spendingAdviceContainer.classList.add('hidden');
+        spendingAdviceContent.innerHTML = '';
+
+        const totalExpense = reportData.expense;
+        if (totalExpense === 0) return;
+
+        const SPENDING_THRESHOLD = 0.35; // 35%
+        let adviceHtml = '';
+
+        for (const category in reportData.expenseDetails) {
+            const amount = reportData.expenseDetails[category];
+            const percentage = amount / totalExpense;
+
+            if (percentage > SPENDING_THRESHOLD) {
+                const advice = spendingAdvice[category] || spendingAdvice['ทั่วไป'];
+                if (advice) {
+                    adviceHtml += `<div class="p-4 bg-yellow-50 rounded-lg border border-yellow-200">`;
+                    adviceHtml += `<h4 class="font-semibold text-gray-800">${advice.title.replace('{category}', category)}</h4>`;
+                    adviceHtml += `<ul class="list-disc list-inside mt-2 text-gray-600 space-y-1">`;
+                    advice.tips.forEach(tip => {
+                        adviceHtml += `<li>${tip}</li>`;
+                    });
+                    adviceHtml += `</ul></div>`;
+                }
+            }
+        }
+
+        if (adviceHtml) {
+            spendingAdviceContent.innerHTML = adviceHtml;
+            spendingAdviceContainer.classList.remove('hidden');
+        }
+    }
+
+    function populateReportSelectors() {
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth();
+        const months = ["มกราคม", "กุมภาพันธ์", "มีนาคม", "เมษายน", "พฤษภาคม", "มิถุนายน", "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
+        
+        reportMonthSelect.innerHTML = months.map((month, index) => `<option value="${index}" ${index === currentMonth ? 'selected' : ''}>${month}</option>`).join('');
+        
+        const yearsWithData = allTransactions.map(t => new Date(t.date).getFullYear());
+        const uniqueYears = [...new Set(yearsWithData), currentYear].sort((a,b) => b-a);
+
+        reportYearSelect.innerHTML = uniqueYears.map(year => `<option value="${year}" ${year === currentYear ? 'selected' : ''}>${year}</option>`).join('');
+    }
+
+    function getReportDataForMonth(year, month) {
+        const transactions = allTransactions.filter(t => {
+            const tDate = new Date(t.date);
+            return tDate.getFullYear() === year && tDate.getMonth() === month;
+        });
+        
+        const income = transactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
+        const expense = transactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+        
+        const expenseDetails = transactions.filter(t => t.type === 'expense').reduce((acc, t) => {
+            acc[t.category] = (acc[t.category] || 0) + t.amount;
+            return acc;
+        }, {});
+        
+        return {
+            income,
+            expense,
+            balance: income - expense,
+            expenseDetails
+        };
+    }
+
+    function generateReport() {
+        const selectedMonth = parseInt(reportMonthSelect.value);
+        const selectedYear = parseInt(reportYearSelect.value);
+        
+        monthlyReportData = getReportDataForMonth(selectedYear, selectedMonth);
+        
+        monthlyIncomeEl.textContent = formatCurrency(monthlyReportData.income);
+        monthlyExpenseEl.textContent = formatCurrency(monthlyReportData.expense);
+        monthlyBalanceEl.textContent = formatCurrency(monthlyReportData.balance);
+        
+        renderExpenseChart(Object.keys(monthlyReportData.expenseDetails), Object.values(monthlyReportData.expenseDetails));
+        analyzeSpendingAndGiveAdvice(monthlyReportData);
+    }
+
+    function renderExpenseChart(labels, data) {
+        if (expenseChartInstance) {
+            expenseChartInstance.destroy();
+        }
+        if (labels.length === 0 || data.reduce((a,b) => a+b, 0) === 0) {
+            expenseChartCanvas.canvas.style.display = 'none';
+            return;
+        }
+        expenseChartCanvas.canvas.style.display = 'block';
+        
+        expenseChartInstance = new Chart(expenseChartCanvas, {
+            type: 'pie',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'รายจ่าย',
+                    data: data,
+                    backgroundColor: ['#ef4444', '#f97316', '#eab308', '#84cc16', '#22c55e', '#14b8a6', '#06b6d4', '#3b82f6', '#8b5cf6', '#d946ef'],
+                    borderColor: '#ffffff',
+                    borderWidth: 2
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: {
+                        position: 'top',
+                    }
+                }
+            },
+        });
+    }
+
+    // --- EVENT LISTENERS ---
+    function initialize() {
+        const today = new Date();
+        dateInput.value = formatISODate(today);
+        viewDateInput.value = formatISODate(today);
+        investmentDateInput.value = formatISODate(today);
+        
+        editCategoryInput.innerHTML = categoryInput.innerHTML;
+        
+        initializeFirebase();
+    }
+
+    function showConfirmModal(callback) {
+        confirmModal.classList.remove('hidden');
+        
+        const handleConfirm = () => {
+            callback();
+            hideConfirmModal();
+        };
+
+        const hideConfirmModal = () => {
+            confirmModal.classList.add('hidden');
+            confirmOkBtn.removeEventListener('click', handleConfirm);
+            confirmCancelBtn.removeEventListener('click', hideConfirmModal);
+        };
+
+        confirmOkBtn.addEventListener('click', handleConfirm, { once: true });
+        confirmCancelBtn.addEventListener('click', hideConfirmModal, { once: true });
+    }
+
+    function showSpendingAlertModal(level, expenseAmount, balance, callback) {
+        let message = `การใช้จ่าย ${formatCurrency(expenseAmount)} คิดเป็นกว่า ${level}% ของยอดคงเหลือวันนี้ (${formatCurrency(balance)})! `;
+        message += "การใช้จ่ายก้อนใหญ่นี้อาจส่งผลกระทบต่อสภาพคล่องทางการเงินของคุณในวันนี้ และอาจทำให้เงินไม่พอใช้จ่ายในเรื่องที่จำเป็นอื่นๆ คุณแน่ใจที่จะดำเนินการต่อหรือไม่?";
+        
+        spendingAlertMessage.innerHTML = message;
+        spendingAlertModal.classList.remove('hidden');
+
+        const handleConfirm = () => {
+            callback();
+            hideModal();
+        };
+        
+        const handleCancel = () => {
+            hideModal();
+        }
+
+        const hideModal = () => {
+            spendingAlertModal.classList.add('hidden');
+            spendingAlertOkBtn.removeEventListener('click', handleCancel);
+            spendingAlertFineBtn.removeEventListener('click', handleConfirm);
+        };
+
+        spendingAlertOkBtn.addEventListener('click', handleCancel, { once: true });
+        spendingAlertFineBtn.addEventListener('click', handleConfirm, { once: true });
+    }
+
+    // --- Auth Listeners ---
+    showSignupLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        loginView.classList.add('hidden');
+        signupView.classList.remove('hidden');
+    });
+
+    showLoginLink.addEventListener('click', (e) => {
+        e.preventDefault();
+        signupView.classList.add('hidden');
+        loginView.classList.remove('hidden');
+    });
+
+    loginForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const email = loginForm['login-email'].value;
+        const password = loginForm['login-password'].value;
+        signInWithEmailAndPassword(auth, email, password)
+            .catch(error => showToast("อีเมลหรือรหัสผ่านไม่ถูกต้อง", "error"));
+    });
+
+    signupForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const email = signupForm['signup-email'].value;
+        const password = signupForm['signup-password'].value;
+        const confirmPassword = signupForm['signup-confirm-password'].value;
+        if (password !== confirmPassword) {
+            showToast("รหัสผ่านไม่ตรงกัน", "error");
+            return;
+        }
+        createUserWithEmailAndPassword(auth, email, password)
+            .catch(error => {
+                if (error.code === 'auth/weak-password') {
+                    showToast("รหัสผ่านสั้นเกินไป (ต้องมี 6 ตัวอักษรขึ้นไป)", "error");
+                } else if (error.code === 'auth/email-already-in-use') {
+                    showToast("อีเมลนี้มีผู้ใช้งานแล้ว", "error");
+                } else {
+                    showToast("เกิดข้อผิดพลาดในการสมัครสมาชิก", "error");
+                }
+            });
+    });
+    
+    googleSigninBtn.addEventListener('click', () => {
+        const provider = new GoogleAuthProvider();
+        signInWithPopup(auth, provider)
+            .catch(error => {
+                console.error("Google sign-in error", error);
+                showToast("เกิดข้อผิดพลาดในการเข้าสู่ระบบด้วย Google", "error");
+            });
+    });
+
+    logoutBtn.addEventListener('click', () => {
+        signOut(auth);
+    });
+
+
+    transactionListEl.addEventListener('click', (e) => {
+        const editBtn = e.target.closest('.edit-btn');
+        const deleteBtn = e.target.closest('.delete-btn');
+
+        if (editBtn) {
+            const txId = Number(editBtn.dataset.id);
+            const txToEdit = allTransactions.find(t => t.id === txId);
+            if (txToEdit) {
+                editTransactionIdInput.value = txToEdit.id;
+                editDateInput.value = txToEdit.date;
+                editAmountInput.value = txToEdit.amount;
+                editCategoryInput.value = txToEdit.category;
+                editTransactionModal.classList.remove('hidden');
+            }
+        }
+
+        if (deleteBtn) {
+            const txId = Number(deleteBtn.dataset.id);
+            showConfirmModal(async () => {
+                allTransactions = allTransactions.filter(t => t.id !== txId);
+                await saveData();
+            });
+        }
+    });
+    
+    editTransactionForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const txId = Number(editTransactionIdInput.value);
+        const txIndex = allTransactions.findIndex(t => t.id === txId);
+
+        if (txIndex > -1) {
+            allTransactions[txIndex].date = editDateInput.value;
+            allTransactions[txIndex].amount = parseFloat(editAmountInput.value);
+            allTransactions[txIndex].category = editCategoryInput.value;
+            allTransactions[txIndex].description = editCategoryInput.options[editCategoryInput.selectedIndex].text;
+            
+            await saveData();
+            editTransactionModal.classList.add('hidden');
+        }
+    });
+    
+    recurringListEl.addEventListener('click', (e) => {
+        const payBtn = e.target.closest('[data-recurring-id]');
+        const editBtn = e.target.closest('.edit-recurring-btn');
+        const deleteBtn = e.target.closest('.delete-recurring-btn');
+
+        if (payBtn) {
+            handleRecurringPayment(Number(payBtn.dataset.recurringId));
+        }
+        if (editBtn) {
+            const rId = Number(editBtn.dataset.id);
+            const rToEdit = allRecurring.find(r => r.id === rId);
+            if(rToEdit) {
+                editRecurringIdInput.value = rToEdit.id;
+                editRecurringDescriptionInput.value = rToEdit.description;
+                editRecurringPaymentDayInput.value = rToEdit.paymentDay;
+                editRecurringMonthlyAmountInput.value = rToEdit.amountPerMonth;
+                editRecurringTotalMonthsInput.value = rToEdit.totalMonths;
+                editRecurringModal.classList.remove('hidden');
+            }
+        }
+        if (deleteBtn) {
+            const rId = Number(deleteBtn.dataset.id);
+            showConfirmModal(async () => {
+                allRecurring = allRecurring.filter(r => r.id !== rId);
+                await saveData();
+            });
+        }
+    });
+
+    editRecurringForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const rId = Number(editRecurringIdInput.value);
+        const rIndex = allRecurring.findIndex(r => r.id === rId);
+
+        if (rIndex > -1) {
+            const updatedMonthlyAmount = parseFloat(editRecurringMonthlyAmountInput.value);
+            const updatedTotalMonths = parseInt(editRecurringTotalMonthsInput.value);
+
+            allRecurring[rIndex].description = editRecurringDescriptionInput.value;
+            allRecurring[rIndex].paymentDay = parseInt(editRecurringPaymentDayInput.value);
+            allRecurring[rIndex].amountPerMonth = updatedMonthlyAmount;
+            allRecurring[rIndex].totalMonths = updatedTotalMonths;
+            allRecurring[rIndex].totalAmount = updatedMonthlyAmount * updatedTotalMonths;
+            
+            await saveData();
+            editRecurringModal.classList.add('hidden');
+        }
+    });
+
+    closeEditModalBtn.addEventListener('click', () => editTransactionModal.classList.add('hidden'));
+    closeEditRecurringModalBtn.addEventListener('click', () => editRecurringModal.classList.add('hidden'));
+    
+    document.addEventListener('DOMContentLoaded', initialize);
+    
+    addIncomeBtn.addEventListener('click', () => addTransaction('income'));
+    addExpenseBtn.addEventListener('click', () => addTransaction('expense'));
+    viewDateInput.addEventListener('change', (e) => renderDataForDate(e.target.value));
+    analyzeStocksBtn.addEventListener('click', getAIStockRecommendations);
+
+    // Modals Listeners
+    openDepositPlanBtn.addEventListener('click', () => depositPlanModal.classList.remove('hidden'));
+    closeDepositPlanModalBtn.addEventListener('click', () => depositPlanModal.classList.add('hidden'));
+    getAiSavingsPlanBtn.addEventListener('click', getAISavingsPlan);
+    openRecurringPaymentsBtn.addEventListener('click', () => recurringPaymentsModal.classList.remove('hidden'));
+    closeRecurringPaymentsModalBtn.addEventListener('click', () => recurringPaymentsModal.classList.add('hidden'));
+    openRecurringModalBtn.addEventListener('click', () => recurringModal.classList.remove('hidden'));
+    closeRecurringModalBtn.addEventListener('click', () => recurringModal.classList.add('hidden'));
+    recurringForm.addEventListener('submit', addRecurringPayment);
+    
+    openInvestmentModalBtn.addEventListener('click', () => investmentModal.classList.remove('hidden'));
+    closeInvestmentModalBtn.addEventListener('click', () => investmentModal.classList.add('hidden'));
+    investmentForm.addEventListener('submit', addInvestment);
+
+    // Report Listeners
+    toggleViewBtn.addEventListener('click', () => {
+        const isReportVisible = !reportContent.classList.contains('hidden');
+        if (isReportVisible) {
+            mainContent.classList.remove('hidden');
+            reportContent.classList.add('hidden');
+            toggleViewBtn.innerHTML = '<i class="fas fa-chart-pie mr-2"></i>ดูรายงานสรุป';
+        } else {
+            mainContent.classList.add('hidden');
+            reportContent.classList.remove('hidden');
+            toggleViewBtn.innerHTML = '<i class="fas fa-edit mr-2"></i>กลับไปหน้าหลัก';
+            populateReportSelectors();
+            generateReport();
+        }
+    });
+
+    reportMonthSelect.addEventListener('change', generateReport);
+    reportYearSelect.addEventListener('change', generateReport);
+
+</script>
+</body>
+</html>
